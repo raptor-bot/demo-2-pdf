@@ -2,7 +2,8 @@
 
 from fastapi import FastAPI, UploadFile, File, Form, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, HTMLResponse
+from fastapi.staticfiles import StaticFiles
 from pathlib import Path
 import json
 import uuid
@@ -35,6 +36,9 @@ app.add_middleware(
 # Storage setup
 STORAGE_PATH = Path("storage")
 STORAGE_PATH.mkdir(exist_ok=True)
+
+# Mount storage directory for serving screenshots
+app.mount("/storage", StaticFiles(directory=str(STORAGE_PATH)), name="storage")
 
 # In-memory session storage (use database in production)
 sessions = {}
@@ -374,6 +378,18 @@ def health_check():
         "status": "healthy",
         "timestamp": datetime.now().isoformat()
     }
+
+
+@app.get("/viewer", response_class=HTMLResponse)
+def session_viewer():
+    """Serve the session viewer HTML page"""
+    viewer_path = Path(__file__).parent / "viewer.html"
+
+    if not viewer_path.exists():
+        raise HTTPException(status_code=404, detail="Viewer page not found")
+
+    with open(viewer_path, "r") as f:
+        return HTMLResponse(content=f.read())
 
 
 if __name__ == "__main__":

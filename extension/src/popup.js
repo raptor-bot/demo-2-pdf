@@ -114,9 +114,9 @@ stopBtn.addEventListener('click', () => {
 viewBtn.addEventListener('click', () => {
   chrome.storage.local.get(['lastSessionId'], (data) => {
     if (data.lastSessionId) {
-      // Open API docs page with session data
+      // Open session viewer page
       chrome.tabs.create({
-        url: `${API_URL}/docs#/default/get_session_api_sessions__session_id__get`
+        url: `${API_URL}/viewer?session=${data.lastSessionId}`
       });
     }
   });
