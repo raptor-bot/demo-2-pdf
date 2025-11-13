@@ -19,13 +19,19 @@ class LLMAnnotationService:
 
         # Initialize client based on provider
         if provider == "openai":
-            from openai import OpenAI
-            self.client = OpenAI(api_key=self.api_key)
-            self.model = model or os.getenv("OPENAI_MODEL", "gpt-4o-mini")
+            try:
+                from openai import OpenAI
+                self.client = OpenAI(api_key=self.api_key)
+                self.model = model or os.getenv("OPENAI_MODEL", "gpt-4o-mini")
+            except Exception as e:
+                raise ValueError(f"Failed to initialize OpenAI client. Error: {str(e)}. Make sure you have openai>=1.54.0 installed and a valid API key.")
         elif provider == "anthropic":
-            from anthropic import Anthropic
-            self.client = Anthropic(api_key=self.api_key)
-            self.model = model or os.getenv("ANTHROPIC_MODEL", "claude-3-5-haiku-20241022")
+            try:
+                from anthropic import Anthropic
+                self.client = Anthropic(api_key=self.api_key)
+                self.model = model or os.getenv("ANTHROPIC_MODEL", "claude-3-5-haiku-20241022")
+            except Exception as e:
+                raise ValueError(f"Failed to initialize Anthropic client. Error: {str(e)}. Make sure you have anthropic>=0.39.0 installed and a valid API key.")
         elif provider == "ollama":
             self.model = model or os.getenv("OLLAMA_MODEL", "llama3")
             self.base_url = "http://localhost:11434"
