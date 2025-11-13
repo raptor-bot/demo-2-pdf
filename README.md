@@ -22,7 +22,9 @@ Demo-to-PDF is a tool that helps you create user documentation by capturing scre
 
 ## Quick Links
 
-- **[Quick Start Guide](QUICK_START.md)** - Get running in 15 minutes
+- **[🚀 Prototype Guide](PROTOTYPE_GUIDE.md)** - **START HERE** - Working prototype in 15 minutes!
+- **[🤖 LLM Integration Guide](LLM_INTEGRATION_GUIDE.md)** - AI-powered description generation
+- **[Quick Start Guide](QUICK_START.md)** - Original quick start
 - **[Feasibility Analysis](FEASIBILITY_ANALYSIS.md)** - Detailed technical analysis
 - **[Architecture Recommendation](ARCHITECTURE_RECOMMENDATION.md)** - Production architecture
 - **[Project Structure](PROJECT_STRUCTURE.md)** - Complete setup guide
@@ -64,24 +66,20 @@ PDF Generation (Export)
 git clone <repository-url>
 cd demo-2-pdf
 
-# Backend setup
+# Run setup script
+./setup.sh
+
+# Start backend
 cd backend
-python -m venv venv
-source venv/bin/activate  # Windows: venv\Scripts\activate
-pip install -r requirements.txt
+source venv/bin/activate
 python main.py
 
-# Extension setup
-cd extension
-# Load unpacked extension in Chrome (see QUICK_START.md)
-
-# Editor setup (optional)
-cd editor
-npm install
-npm run dev
+# Load extension
+# Chrome: chrome://extensions/ → Load unpacked → select 'extension' folder
+# Firefox: about:debugging → Load Temporary Add-on → select extension/manifest.json
 ```
 
-For detailed setup instructions, see [QUICK_START.md](QUICK_START.md).
+**→ For detailed setup, see [PROTOTYPE_GUIDE.md](PROTOTYPE_GUIDE.md)**
 
 ---
 
@@ -136,13 +134,20 @@ See [ARCHITECTURE_RECOMMENDATION.md](ARCHITECTURE_RECOMMENDATION.md) for detaile
 - ✓ Step editing interface
 - ✓ Image optimization
 
+### Current (Working Prototype) 🎉
+- ✓ **AI-powered descriptions** - OpenAI, Anthropic, Ollama support
+- ✓ **Template-based descriptions** - Fast, free fallback
+- ✓ **Real-time capture** - Clicks, inputs, navigation
+- ✓ **Automatic screenshots** - After each action
+- ✓ **REST API** - Session management and export
+
 ### Future
-- AI-powered descriptions
 - Video export
 - Desktop application capture
 - Cloud sync (optional)
 - Multiple PDF templates
 - Collaboration features
+- Full PDF generation with WeasyPrint
 
 ---
 
