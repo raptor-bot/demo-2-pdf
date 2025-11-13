@@ -1,0 +1,480 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Demo2PDF - Session Viewer</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif;
+            background: #f5f5f5;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        .header {
+            background: white;
+            padding: 30px;
+            border-radius: 12px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+            margin-bottom: 30px;
+        }
+
+        h1 {
+            color: #333;
+            margin-bottom: 10px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .session-info {
+            color: #666;
+            font-size: 14px;
+            margin-top: 15px;
+            display: flex;
+            gap: 20px;
+            flex-wrap: wrap;
+        }
+
+        .session-info span {
+            background: #f0f0f0;
+            padding: 5px 12px;
+            border-radius: 6px;
+        }
+
+        .loading {
+            text-align: center;
+            padding: 60px;
+            color: #666;
+            font-size: 18px;
+        }
+
+        .error {
+            background: #fee;
+            color: #c00;
+            padding: 20px;
+            border-radius: 8px;
+            margin: 20px 0;
+            border-left: 4px solid #c00;
+        }
+
+        .steps {
+            display: flex;
+            flex-direction: column;
+            gap: 25px;
+        }
+
+        .step {
+            background: white;
+            padding: 25px;
+            border-radius: 12px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+            transition: transform 0.2s;
+        }
+
+        .step:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+        }
+
+        .step-header {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            margin-bottom: 20px;
+        }
+
+        .step-number {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            font-size: 18px;
+            flex-shrink: 0;
+        }
+
+        .step-title {
+            flex: 1;
+        }
+
+        .step-title h3 {
+            color: #333;
+            font-size: 18px;
+            margin-bottom: 5px;
+        }
+
+        .step-timestamp {
+            color: #999;
+            font-size: 12px;
+        }
+
+        .step-description {
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 8px;
+            border-left: 4px solid #667eea;
+            margin-bottom: 15px;
+            line-height: 1.6;
+            color: #333;
+        }
+
+        .step-screenshot {
+            border-radius: 8px;
+            overflow: hidden;
+            border: 1px solid #e0e0e0;
+            cursor: pointer;
+        }
+
+        .step-screenshot img {
+            width: 100%;
+            height: auto;
+            display: block;
+        }
+
+        .step-meta {
+            display: flex;
+            gap: 10px;
+            margin-top: 15px;
+            flex-wrap: wrap;
+        }
+
+        .badge {
+            background: #e0e7ff;
+            color: #4c51bf;
+            padding: 4px 10px;
+            border-radius: 12px;
+            font-size: 12px;
+            font-weight: 500;
+        }
+
+        .badge.template {
+            background: #e0f2fe;
+            color: #0369a1;
+        }
+
+        .badge.llm {
+            background: #dcfce7;
+            color: #15803d;
+        }
+
+        .actions {
+            display: flex;
+            gap: 15px;
+            margin-top: 20px;
+        }
+
+        .btn {
+            padding: 12px 24px;
+            border-radius: 8px;
+            border: none;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+            text-decoration: none;
+            display: inline-block;
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+        }
+
+        .btn-secondary {
+            background: #f0f0f0;
+            color: #333;
+        }
+
+        .btn-secondary:hover {
+            background: #e0e0e0;
+        }
+
+        .empty-state {
+            text-align: center;
+            padding: 60px;
+            color: #999;
+        }
+
+        .empty-state svg {
+            width: 80px;
+            height: 80px;
+            margin-bottom: 20px;
+            opacity: 0.5;
+        }
+
+        /* Modal for full-size screenshots */
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.9);
+            z-index: 1000;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .modal.active {
+            display: flex;
+        }
+
+        .modal img {
+            max-width: 95%;
+            max-height: 95%;
+            border-radius: 8px;
+        }
+
+        .modal-close {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            color: white;
+            font-size: 40px;
+            cursor: pointer;
+            background: rgba(0,0,0,0.5);
+            width: 50px;
+            height: 50px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            line-height: 1;
+        }
+
+        .modal-close:hover {
+            background: rgba(0,0,0,0.7);
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>
+                📄 Demo2PDF Session Viewer
+            </h1>
+            <div class="session-info" id="sessionInfo">
+                <span>Loading...</span>
+            </div>
+        </div>
+
+        <div id="content">
+            <div class="loading">
+                Loading session data...
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal for full-size screenshots -->
+    <div class="modal" id="modal">
+        <div class="modal-close" onclick="closeModal()">&times;</div>
+        <img id="modalImage" src="" alt="Full size screenshot">
+    </div>
+
+    <script>
+        const API_URL = 'http://localhost:8000';
+        let currentSession = null;
+
+        // Get session ID from URL query parameter
+        const urlParams = new URLSearchParams(window.location.search);
+        const sessionId = urlParams.get('session');
+
+        if (!sessionId) {
+            showError('No session ID provided. Please specify ?session=SESSION_ID in the URL.');
+        } else {
+            loadSession(sessionId);
+        }
+
+        async function loadSession(sessionId) {
+            try {
+                const response = await fetch(`${API_URL}/api/sessions/${sessionId}`);
+
+                if (!response.ok) {
+                    throw new Error(`Failed to load session: ${response.status}`);
+                }
+
+                const session = await response.json();
+                currentSession = session;
+                displaySession(session);
+            } catch (error) {
+                console.error('Error loading session:', error);
+                showError(`Failed to load session: ${error.message}`);
+            }
+        }
+
+        function displaySession(session) {
+            // Update header info
+            const sessionInfo = document.getElementById('sessionInfo');
+            const createdDate = new Date(session.created_at).toLocaleString();
+
+            sessionInfo.innerHTML = `
+                <span><strong>Session ID:</strong> ${session.id.substring(0, 8)}...</span>
+                <span><strong>Created:</strong> ${createdDate}</span>
+                <span><strong>Steps:</strong> ${session.total_steps}</span>
+                <span><strong>Mode:</strong> ${session.config.use_llm ? '🤖 AI-Enhanced' : '📝 Template-Based'}</span>
+            `;
+
+            // Display steps
+            const content = document.getElementById('content');
+
+            if (session.steps.length === 0) {
+                content.innerHTML = `
+                    <div class="empty-state">
+                        <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
+                        </svg>
+                        <h3>No steps captured yet</h3>
+                        <p>Start recording to capture user interactions</p>
+                    </div>
+                `;
+                return;
+            }
+
+            const stepsHTML = session.steps.map(step => {
+                const timestamp = new Date(step.timestamp).toLocaleTimeString();
+                const hasLLM = step.llm_description !== null;
+
+                return `
+                    <div class="step">
+                        <div class="step-header">
+                            <div class="step-number">${step.id}</div>
+                            <div class="step-title">
+                                <h3>${step.final_description}</h3>
+                                <div class="step-timestamp">${timestamp}</div>
+                            </div>
+                        </div>
+
+                        ${step.user_edited ? '<div class="badge">✏️ User Edited</div>' : ''}
+
+                        <div class="step-screenshot" onclick="openModal('/storage/${step.screenshot.split('/').pop()}')">
+                            <img src="/storage/${step.screenshot.split('/').pop()}" alt="Step ${step.id} screenshot" loading="lazy">
+                        </div>
+
+                        <div class="step-meta">
+                            <span class="badge template">Template: ${step.template_description}</span>
+                            ${hasLLM ? `<span class="badge llm">AI: ${step.llm_description}</span>` : ''}
+                        </div>
+                    </div>
+                `;
+            }).join('');
+
+            content.innerHTML = `
+                <div class="actions">
+                    <button class="btn btn-primary" onclick="downloadPDF()">
+                        📥 Download PDF
+                    </button>
+                    <button class="btn btn-secondary" onclick="regenerateWithAI()">
+                        🤖 Enhance with AI
+                    </button>
+                    <a href="${API_URL}/api/sessions/${session.id}" class="btn btn-secondary" target="_blank">
+                        🔗 View Raw JSON
+                    </a>
+                </div>
+                <div class="steps">
+                    ${stepsHTML}
+                </div>
+            `;
+        }
+
+        function showError(message) {
+            const content = document.getElementById('content');
+            content.innerHTML = `
+                <div class="error">
+                    <strong>Error:</strong> ${message}
+                </div>
+                <div class="actions">
+                    <a href="/" class="btn btn-secondary">← Back to Home</a>
+                </div>
+            `;
+        }
+
+        function openModal(imageSrc) {
+            const modal = document.getElementById('modal');
+            const modalImage = document.getElementById('modalImage');
+            modalImage.src = imageSrc;
+            modal.classList.add('active');
+        }
+
+        function closeModal() {
+            const modal = document.getElementById('modal');
+            modal.classList.remove('active');
+        }
+
+        // Close modal on click outside image
+        document.getElementById('modal').addEventListener('click', function(e) {
+            if (e.target === this) {
+                closeModal();
+            }
+        });
+
+        // Close modal on ESC key
+        document.addEventListener('keydown', function(e) {
+            if (e.key === 'Escape') {
+                closeModal();
+            }
+        });
+
+        async function downloadPDF() {
+            alert('PDF download coming soon! For now, use the API endpoint to generate PDFs.');
+            // TODO: Implement PDF download when WeasyPrint is integrated
+        }
+
+        async function regenerateWithAI() {
+            if (!currentSession) return;
+
+            const apiKey = prompt('Enter your OpenAI API key (or leave empty to use .env):');
+
+            if (apiKey === null) return; // User cancelled
+
+            const confirmed = confirm('Regenerate all descriptions using AI? This will enhance the quality of all step descriptions.');
+
+            if (!confirmed) return;
+
+            try {
+                const response = await fetch(`${API_URL}/api/sessions/${currentSession.id}/regenerate`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        use_llm: true,
+                        llm_provider: 'openai',
+                        api_key: apiKey || undefined
+                    })
+                });
+
+                if (!response.ok) {
+                    throw new Error(`Failed to regenerate: ${response.status}`);
+                }
+
+                alert('✅ Descriptions enhanced with AI! Reloading...');
+                location.reload();
+            } catch (error) {
+                alert(`❌ Error: ${error.message}`);
+            }
+        }
+    </script>
+</body>
+</html>
