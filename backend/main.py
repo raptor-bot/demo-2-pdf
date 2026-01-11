@@ -21,6 +21,11 @@ class ReorderRequest(BaseModel):
 class SubStepsRequest(BaseModel):
     sub_steps: List[str]
 
+class SessionMetadataRequest(BaseModel):
+    title: Optional[str] = None
+    sub_title: Optional[str] = None
+    description: Optional[str] = None
+
 # Load environment variables
 load_dotenv()
 
@@ -46,12 +51,41 @@ app.add_middleware(
 # Storage setup
 STORAGE_PATH = Path("storage")
 STORAGE_PATH.mkdir(exist_ok=True)
+SESSIONS_FILE = STORAGE_PATH / "sessions.json"
 
 # Mount storage directory for serving screenshots
 app.mount("/storage", StaticFiles(directory=str(STORAGE_PATH)), name="storage")
 
-# In-memory session storage (use database in production)
+# In-memory session storage (persisted to JSON file)
 sessions = {}
+
+
+def load_sessions():
+    """Load sessions from JSON file on startup"""
+    global sessions
+    if SESSIONS_FILE.exists():
+        try:
+            with open(SESSIONS_FILE, "r") as f:
+                sessions = json.load(f)
+            print(f"Loaded {len(sessions)} sessions from storage")
+        except (json.JSONDecodeError, IOError) as e:
+            print(f"Error loading sessions: {e}")
+            sessions = {}
+    else:
+        sessions = {}
+
+
+def save_sessions():
+    """Save sessions to JSON file"""
+    try:
+        with open(SESSIONS_FILE, "w") as f:
+            json.dump(sessions, f, indent=2)
+    except IOError as e:
+        print(f"Error saving sessions: {e}")
+
+
+# Load sessions on module import
+load_sessions()
 
 
 @app.get("/")
@@ -100,8 +134,11 @@ def create_session(
         "steps": [],
         "events": [],
         "config": config,
-        "context": context
+        "context": context,
+        "archived": False
     }
+
+    save_sessions()
 
     return {
         "session_id": session_id,
@@ -176,6 +213,7 @@ async def add_event(
     }
 
     sessions[session_id]["steps"].append(step)
+    save_sessions()
 
     return {
         "success": True,
@@ -197,25 +235,113 @@ def get_session(session_id: str):
         "created_at": session["created_at"],
         "total_steps": len(session["steps"]),
         "config": {k: v for k, v in session["config"].items() if k != "api_key"},
-        "context": session.get("context"),
+        "title": session.get("title", "User Guide"),
+        "sub_title": session.get("sub_title"),
+        "description": session.get("description"),
+        "archived": session.get("archived", False),
         "steps": session["steps"]
     }
 
 
-@app.get("/api/sessions")
-def list_sessions():
-    """List all sessions"""
+@app.put("/api/sessions/{session_id}/metadata")
+def update_session_metadata(session_id: str, request: SessionMetadataRequest):
+    """
+    Update session metadata (title, sub_title, description).
+
+    Args:
+        session_id: Session ID
+        request: SessionMetadataRequest with title, sub_title, and/or description
+    """
+    if session_id not in sessions:
+        raise HTTPException(status_code=404, detail="Session not found")
+
+    if request.title is not None:
+        sessions[session_id]["title"] = request.title.strip()
+
+    if request.sub_title is not None:
+        sessions[session_id]["sub_title"] = request.sub_title.strip() if request.sub_title.strip() else None
+
+    if request.description is not None:
+        sessions[session_id]["description"] = request.description.strip() if request.description.strip() else None
+
+    save_sessions()
+
     return {
-        "total": len(sessions),
+        "success": True,
+        "title": sessions[session_id].get("title", "User Guide"),
+        "sub_title": sessions[session_id].get("sub_title"),
+        "description": sessions[session_id].get("description")
+    }
+
+
+@app.get("/api/sessions")
+def list_sessions(include_archived: bool = False):
+    """List all sessions, optionally including archived ones"""
+    filtered_sessions = [
+        s for s in sessions.values()
+        if include_archived or not s.get("archived", False)
+    ]
+
+    return {
+        "total": len(filtered_sessions),
         "sessions": [
             {
                 "id": s["id"],
                 "created_at": s["created_at"],
                 "total_steps": len(s["steps"]),
+                "title": s.get("title", "User Guide"),
+                "sub_title": s.get("sub_title"),
+                "description": s.get("description"),
+                "archived": s.get("archived", False),
                 "config": {k: v for k, v in s["config"].items() if k != "api_key"}
             }
-            for s in sessions.values()
+            for s in sorted(filtered_sessions, key=lambda x: x["created_at"], reverse=True)
         ]
+    }
+
+
+@app.put("/api/sessions/{session_id}/archive")
+def archive_session(session_id: str, archived: bool = True):
+    """Archive or unarchive a session"""
+    if session_id not in sessions:
+        raise HTTPException(status_code=404, detail="Session not found")
+
+    sessions[session_id]["archived"] = archived
+    save_sessions()
+
+    return {
+        "success": True,
+        "session_id": session_id,
+        "archived": archived
+    }
+
+
+@app.delete("/api/sessions/{session_id}")
+def delete_session(session_id: str):
+    """Permanently delete a session and its screenshots"""
+    if session_id not in sessions:
+        raise HTTPException(status_code=404, detail="Session not found")
+
+    # Delete associated screenshots
+    session = sessions[session_id]
+    for step in session.get("steps", []):
+        screenshot_path = step.get("screenshot")
+        if screenshot_path:
+            try:
+                path = Path(screenshot_path)
+                if path.exists():
+                    path.unlink()
+            except Exception as e:
+                print(f"Error deleting screenshot {screenshot_path}: {e}")
+
+    # Remove session from storage
+    del sessions[session_id]
+    save_sessions()
+
+    return {
+        "success": True,
+        "session_id": session_id,
+        "message": "Session permanently deleted"
     }
 
 
@@ -301,6 +427,7 @@ def update_step(
     # Update description
     sessions[session_id]["steps"][step_index]["final_description"] = description
     sessions[session_id]["steps"][step_index]["user_edited"] = True
+    save_sessions()
 
     return {
         "success": True,
@@ -330,6 +457,8 @@ def delete_step(session_id: str, step_id: int):
         if "event" in step:
             step["event"]["step_id"] = i + 1
 
+    save_sessions()
+
     return {
         "success": True,
         "deleted_step_id": step_id,
@@ -356,6 +485,7 @@ def update_sub_steps(session_id: str, step_id: int, request: SubStepsRequest):
 
     # Update sub-steps
     sessions[session_id]["steps"][step_index]["sub_steps"] = request.sub_steps
+    save_sessions()
 
     return {
         "success": True,
@@ -411,6 +541,7 @@ def reorder_steps(session_id: str, request: ReorderRequest):
 
     sessions[session_id]["steps"] = new_steps
     sessions[session_id]["events"] = new_events
+    save_sessions()
 
     return {
         "success": True,
@@ -495,6 +626,8 @@ async def insert_step(
         if "event" in step:
             step["event"]["step_id"] = i + 1
 
+    save_sessions()
+
     return {
         "success": True,
         "step_id": insert_index + 1,
@@ -547,11 +680,23 @@ def export_pdf(session_id: str):
         }
         h1 {
             color: #667eea;
-            margin-bottom: 10px;
+            margin-bottom: 5px;
+        }
+        h2 {
+            color: #764ba2;
+            font-size: 18px;
+            font-weight: 500;
+            margin-bottom: 15px;
         }
         .meta {
             color: #666;
             font-size: 12px;
+        }
+        .description {
+            color: #555;
+            font-size: 13px;
+            margin-bottom: 8px;
+            font-style: italic;
         }
         .step {
             margin-bottom: 30px;
@@ -623,13 +768,22 @@ def export_pdf(session_id: str):
 </head>
 <body>
     <div class="header">
-        <h1>User Guide</h1>
+        <h1>{title}</h1>
+        {sub_title_html}
+        {description_html}
         <div class="meta">
 """]
 
+    # Get custom title or default
+    title = session.get("title", "User Guide")
+    sub_title = session.get("sub_title")
+    description = session.get("description")
+
+    html_parts[0] = html_parts[0].replace("{title}", title)
+    html_parts[0] = html_parts[0].replace("{sub_title_html}", f"<h2>{sub_title}</h2>" if sub_title else "")
+    html_parts[0] = html_parts[0].replace("{description_html}", f'<div class="description">{description}</div>' if description else "")
+
     html_parts.append(f"Generated on {datetime.now().strftime('%B %d, %Y at %I:%M %p')}")
-    if session.get("context"):
-        html_parts.append(f"<br>Context: {session['context']}")
     html_parts.append(f"<br>Total Steps: {len(session['steps'])}")
     html_parts.append("</div></div>")
 

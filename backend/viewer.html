@@ -950,6 +950,177 @@
         .step.collapsed .collapse-indicator {
             display: inline;
         }
+
+        /* PDF Metadata editing */
+        .pdf-metadata {
+            background: white;
+            padding: 20px 25px;
+            border-radius: 12px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
+            border-left: 4px solid #667eea;
+        }
+
+        .pdf-metadata h3 {
+            color: #667eea;
+            font-size: 14px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-bottom: 15px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .metadata-row {
+            display: flex;
+            gap: 20px;
+            flex-wrap: wrap;
+        }
+
+        .metadata-field {
+            flex: 1;
+            min-width: 200px;
+        }
+
+        .metadata-field label {
+            display: block;
+            font-size: 12px;
+            color: #666;
+            margin-bottom: 6px;
+            font-weight: 500;
+        }
+
+        .metadata-field input {
+            width: 100%;
+            padding: 10px 12px;
+            border: 1px solid #e0e0e0;
+            border-radius: 6px;
+            font-size: 14px;
+            transition: border-color 0.2s, box-shadow 0.2s;
+        }
+
+        .metadata-field input:focus {
+            outline: none;
+            border-color: #667eea;
+            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+        }
+
+        .metadata-field input::placeholder {
+            color: #aaa;
+        }
+
+        .metadata-preview {
+            margin-top: 15px;
+            padding: 12px 15px;
+            background: #f8f9fa;
+            border-radius: 6px;
+            font-size: 13px;
+            color: #666;
+        }
+
+        .metadata-preview strong {
+            color: #333;
+        }
+
+        /* Session list action buttons */
+        .session-card-actions {
+            display: flex;
+            gap: 8px;
+            flex-shrink: 0;
+        }
+
+        .session-card-actions button {
+            padding: 8px 12px;
+            border: none;
+            border-radius: 6px;
+            font-size: 12px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .btn-archive {
+            background: #fef3c7;
+            color: #92400e;
+        }
+
+        .btn-archive:hover {
+            background: #fde68a;
+        }
+
+        .btn-archive.archived {
+            background: #d1fae5;
+            color: #065f46;
+        }
+
+        .btn-archive.archived:hover {
+            background: #a7f3d0;
+        }
+
+        .btn-delete-session {
+            background: #fee2e2;
+            color: #dc2626;
+        }
+
+        .btn-delete-session:hover {
+            background: #fecaca;
+        }
+
+        .session-card.archived {
+            opacity: 0.7;
+            border-left: 4px solid #d1d5db;
+        }
+
+        .session-card.archived:hover {
+            border-left: 4px solid #9ca3af;
+        }
+
+        .session-title-display {
+            font-size: 16px;
+            color: #333;
+            margin-bottom: 4px;
+        }
+
+        .session-subtitle-display {
+            font-size: 13px;
+            color: #667eea;
+            margin-bottom: 8px;
+        }
+
+        .archived-badge {
+            background: #e5e7eb;
+            color: #6b7280;
+            padding: 2px 8px;
+            border-radius: 4px;
+            font-size: 11px;
+            margin-left: 8px;
+        }
+
+        .list-actions {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+        }
+
+        .btn-show-archived {
+            background: #f3f4f6;
+            color: #374151;
+            padding: 8px 16px;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 13px;
+            transition: all 0.2s;
+        }
+
+        .btn-show-archived:hover {
+            background: #e5e7eb;
+        }
+
+        .btn-show-archived.active {
+            background: #667eea;
+            color: white;
+        }
     </style>
 </head>
 <body>
@@ -1020,6 +1191,7 @@
         let isCollapsed = false;
         let draggedStep = null;
         let stepToDelete = null;
+        let showArchivedSessions = false;
 
         // Get session ID from URL query parameter
         const urlParams = new URLSearchParams(window.location.search);
@@ -1035,7 +1207,10 @@
 
         async function loadSessionList() {
             try {
-                const response = await fetch(`${API_URL}/api/sessions`);
+                const url = showArchivedSessions
+                    ? `${API_URL}/api/sessions?include_archived=true`
+                    : `${API_URL}/api/sessions`;
+                const response = await fetch(url);
 
                 if (!response.ok) {
                     throw new Error(`Failed to load sessions: ${response.status}`);
@@ -1052,7 +1227,12 @@
         function displaySessionList(sessions) {
             // Update header info
             const sessionInfo = document.getElementById('sessionInfo');
-            sessionInfo.innerHTML = `<span><strong>Total Sessions:</strong> ${sessions.length}</span>`;
+            const activeSessions = sessions.filter(s => !s.archived);
+            const archivedSessions = sessions.filter(s => s.archived);
+            sessionInfo.innerHTML = `
+                <span><strong>Active Sessions:</strong> ${activeSessions.length}</span>
+                ${archivedSessions.length > 0 ? `<span><strong>Archived:</strong> ${archivedSessions.length}</span>` : ''}
+            `;
 
             const content = document.getElementById('content');
 
@@ -1072,18 +1252,31 @@
             const sessionsHTML = sessions.map(session => {
                 const createdDate = new Date(session.created_at).toLocaleString();
                 const mode = session.config?.use_llm ? 'AI-Enhanced' : 'Template-Based';
+                const title = session.title || 'Untitled Session';
+                const subTitle = session.sub_title || '';
+                const isArchived = session.archived || false;
 
                 return `
-                    <div class="session-card" onclick="window.location.href='/viewer?session=${session.id}'">
-                        <div class="session-card-info">
-                            <h3>Session ${session.id.substring(0, 8)}...</h3>
+                    <div class="session-card ${isArchived ? 'archived' : ''}" data-session-id="${session.id}">
+                        <div class="session-card-info" onclick="window.location.href='/viewer?session=${session.id}'">
+                            <div class="session-title-display">
+                                ${title}${isArchived ? '<span class="archived-badge">Archived</span>' : ''}
+                            </div>
+                            ${subTitle ? `<div class="session-subtitle-display">${subTitle}</div>` : ''}
                             <div class="session-card-meta">
                                 <span>Created: ${createdDate}</span>
                                 <span>Steps: ${session.total_steps || 0}</span>
                                 <span>Mode: ${mode}</span>
                             </div>
                         </div>
-                        <div class="session-card-arrow">&rarr;</div>
+                        <div class="session-card-actions">
+                            <button class="btn-archive ${isArchived ? 'archived' : ''}" onclick="event.stopPropagation(); toggleArchiveSession('${session.id}', ${!isArchived})" title="${isArchived ? 'Unarchive' : 'Archive'}">
+                                ${isArchived ? 'Unarchive' : 'Archive'}
+                            </button>
+                            <button class="btn-delete-session" onclick="event.stopPropagation(); confirmDeleteSession('${session.id}')" title="Delete">
+                                Delete
+                            </button>
+                        </div>
                     </div>
                 `;
             }).join('');
@@ -1093,10 +1286,60 @@
                     <h2>Select a Session</h2>
                     <p>Click on a session to view its captured steps</p>
                 </div>
+                <div class="list-actions">
+                    <button class="btn-show-archived ${showArchivedSessions ? 'active' : ''}" onclick="toggleShowArchived()">
+                        ${showArchivedSessions ? 'Hide Archived' : 'Show Archived'}
+                    </button>
+                </div>
                 <div class="session-list">
                     ${sessionsHTML}
                 </div>
             `;
+        }
+
+        function toggleShowArchived() {
+            showArchivedSessions = !showArchivedSessions;
+            loadSessionList();
+        }
+
+        async function toggleArchiveSession(sessionId, archive) {
+            try {
+                const response = await fetch(`${API_URL}/api/sessions/${sessionId}/archive?archived=${archive}`, {
+                    method: 'PUT'
+                });
+
+                if (!response.ok) {
+                    throw new Error(`Failed to ${archive ? 'archive' : 'unarchive'} session`);
+                }
+
+                showToast(`Session ${archive ? 'archived' : 'unarchived'}`, 'success');
+                loadSessionList();
+            } catch (error) {
+                console.error('Error:', error);
+                showToast(`Error: ${error.message}`, 'error');
+            }
+        }
+
+        async function confirmDeleteSession(sessionId) {
+            if (!confirm('Are you sure you want to permanently delete this session? This cannot be undone.')) {
+                return;
+            }
+
+            try {
+                const response = await fetch(`${API_URL}/api/sessions/${sessionId}`, {
+                    method: 'DELETE'
+                });
+
+                if (!response.ok) {
+                    throw new Error('Failed to delete session');
+                }
+
+                showToast('Session deleted', 'success');
+                loadSessionList();
+            } catch (error) {
+                console.error('Error:', error);
+                showToast(`Error: ${error.message}`, 'error');
+            }
         }
 
         async function loadSession(sessionId) {
@@ -1219,6 +1462,36 @@
                 </div>
             `;
 
+            // Prepare metadata section for edit mode
+            const pdfTitle = session.title || 'User Guide';
+            const pdfSubTitle = session.sub_title || '';
+            const pdfDescription = session.description || '';
+
+            const metadataSection = isEditMode ? `
+                <div class="pdf-metadata">
+                    <h3>PDF Export Settings</h3>
+                    <div class="metadata-row">
+                        <div class="metadata-field">
+                            <label for="pdfTitle">Document Title</label>
+                            <input type="text" id="pdfTitle" value="${pdfTitle}" placeholder="User Guide" onchange="saveMetadata()">
+                        </div>
+                        <div class="metadata-field">
+                            <label for="pdfSubTitle">Document Sub-Title</label>
+                            <input type="text" id="pdfSubTitle" value="${pdfSubTitle}" placeholder="e.g., Changing your password" onchange="saveMetadata()">
+                        </div>
+                    </div>
+                    <div class="metadata-row" style="margin-top: 15px;">
+                        <div class="metadata-field" style="flex: 2;">
+                            <label for="pdfDescription">Description</label>
+                            <input type="text" id="pdfDescription" value="${pdfDescription}" placeholder="e.g., Step-by-step guide for account settings" onchange="saveMetadata()">
+                        </div>
+                    </div>
+                    <div class="metadata-preview">
+                        Preview: <strong id="metadataPreviewTitle">${pdfTitle}</strong>${pdfSubTitle ? ` - ${pdfSubTitle}` : ''} | Generated on ${new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })} | ${pdfDescription ? `${pdfDescription} | ` : ''}Total Steps: ${session.total_steps}
+                    </div>
+                </div>
+            ` : '';
+
             content.innerHTML = `
                 <div class="actions">
                     <button class="btn btn-primary" onclick="downloadPDF()">
@@ -1239,6 +1512,7 @@
                         View Raw JSON
                     </a>
                 </div>
+                ${metadataSection}
                 <div class="steps ${isEditMode ? 'edit-mode' : ''}" id="stepsContainer">
                     ${stepsHTML}
                     ${addStepAtEndHTML}
@@ -1545,6 +1819,47 @@
                     }
                 });
             });
+        }
+
+        // ==================== PDF METADATA ====================
+
+        async function saveMetadata() {
+            const titleInput = document.getElementById('pdfTitle');
+            const subTitleInput = document.getElementById('pdfSubTitle');
+            const descriptionInput = document.getElementById('pdfDescription');
+
+            const title = titleInput.value.trim() || 'User Guide';
+            const sub_title = subTitleInput.value.trim();
+            const description = descriptionInput.value.trim();
+
+            try {
+                const response = await fetch(`${API_URL}/api/sessions/${currentSession.id}/metadata`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ title, sub_title, description })
+                });
+
+                if (!response.ok) {
+                    throw new Error(`Failed to save metadata: ${response.status}`);
+                }
+
+                // Update local session data
+                currentSession.title = title;
+                currentSession.sub_title = sub_title;
+                currentSession.description = description;
+
+                // Update preview text
+                const previewEl = document.querySelector('.metadata-preview');
+                if (previewEl) {
+                    const dateStr = new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
+                    previewEl.innerHTML = `Preview: <strong id="metadataPreviewTitle">${title}</strong>${sub_title ? ` - ${sub_title}` : ''} | Generated on ${dateStr} | ${description ? `${description} | ` : ''}Total Steps: ${currentSession.total_steps}`;
+                }
+
+                showToast('PDF settings saved', 'success');
+            } catch (error) {
+                console.error('Error saving metadata:', error);
+                showToast(`Error: ${error.message}`, 'error');
+            }
         }
 
         // ==================== DELETE STEP ====================
