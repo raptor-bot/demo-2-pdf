@@ -70,12 +70,19 @@ startBtn.addEventListener('click', async () => {
       llmProvider
     });
 
-    // Notify content script
+    // Notify content script and capture initial page
     chrome.tabs.query({active: true, currentWindow: true}, (tabs) => {
       if (tabs[0]) {
         chrome.tabs.sendMessage(tabs[0].id, {
           action: 'startRecording',
           sessionId: session.session_id
+        }, () => {
+          // After content script is ready, trigger initial page capture
+          setTimeout(() => {
+            chrome.tabs.sendMessage(tabs[0].id, {
+              action: 'captureInitialPage'
+            });
+          }, 300);
         });
       }
     });

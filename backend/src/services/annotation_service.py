@@ -11,7 +11,8 @@ class TemplateAnnotationService:
             "input": self._generate_input_description,
             "select": self._generate_select_description,
             "navigate": self._generate_navigate_description,
-            "scroll": self._generate_scroll_description
+            "scroll": self._generate_scroll_description,
+            "start": self._generate_start_description
         }
 
     def generate_description(self, event: Dict) -> str:
@@ -108,8 +109,53 @@ class TemplateAnnotationService:
 
     def _generate_scroll_description(self, event: Dict) -> str:
         """Generate description for scroll event"""
-        direction = event.get("direction", "down")
-        return f"Scroll {direction} the page"
+        scroll_data = event.get("scroll", {})
+        direction = scroll_data.get("direction", "down")
+        visible_section = scroll_data.get("visibleSection")
+
+        # Use visible section if available
+        if visible_section:
+            return f"Scroll {direction} to the '{visible_section}' section"
+
+        # Fallback to position-based description
+        position = scroll_data.get("position", 0)
+        if position < 300:
+            location = "to the top of the page"
+        elif position < 800:
+            location = "to view more content"
+        else:
+            location = "further down the page"
+
+        return f"Scroll {direction} {location}"
+
+    def _generate_start_description(self, event: Dict) -> str:
+        """Generate description for initial page (recording start)"""
+        page_title = event.get("page_title", "")
+        url = event.get("url", "")
+
+        from urllib.parse import urlparse
+        parsed = urlparse(url)
+
+        # Build a rich description with both title and domain context
+        if page_title and page_title.strip():
+            # Clean up title - remove common suffixes
+            clean_title = page_title.strip()
+            for suffix in [' - Google Chrome', ' | ', ' - ']:
+                if suffix in clean_title:
+                    clean_title = clean_title.split(suffix)[0].strip()
+
+            if parsed.netloc:
+                # Include domain for context (e.g., "Start on the Dashboard page (app.example.com)")
+                return f"Start on the {clean_title} page ({parsed.netloc})"
+            return f"Start on the {clean_title} page"
+        elif parsed.netloc:
+            # No title, use domain and path
+            path = parsed.path.strip('/').replace('-', ' ').replace('_', ' ')
+            if path:
+                return f"Start on {parsed.netloc}/{path}"
+            return f"Start on {parsed.netloc}"
+        else:
+            return "Start recording the demo"
 
     def _generate_default(self, event: Dict) -> str:
         """Fallback for unknown event types"""

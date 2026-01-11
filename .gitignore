@@ -64,3 +64,16 @@ htmlcov/
 *.tmp
 *.bak
 *.cache
+
+# RuVector intelligence data
+.ruvector/
+
+# Claude Code / Claude Flow (AI tooling)
+.claude/
+.claude-flow/
+.swarm/
+.mcp.json
+CLAUDE.md
+
+# Recorder virtual environment
+recorder/venv/

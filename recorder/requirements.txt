@@ -1,0 +1,7 @@
+# macOS Menu Bar Video Recorder
+rumps>=0.4.0                    # macOS menu bar framework
+pyobjc-framework-AVFoundation>=10.0  # Native video recording
+pyobjc-framework-Cocoa>=10.0   # macOS window management
+pyobjc-framework-Quartz>=10.0  # Screen capture APIs
+httpx>=0.27.0                   # Async HTTP client
+python-dotenv>=1.0.0            # Environment variables
